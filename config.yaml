@@ -1,0 +1,7 @@
+port: 8081
+registry: https://sr.corp.com:8081/
+tls:
+  enabled: true
+  key: client.key
+  cert: client.crt
+  ca: ca.crt

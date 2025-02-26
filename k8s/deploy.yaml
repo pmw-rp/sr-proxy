@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: schema-registry-proxy-config
+data:
+  config.yaml: |
+    port: 8081
+    registry: http://green-0.green.green.svc.cluster.local:8081/
+    tls:
+      enabled: false
+      key: client.key
+      cert: client.crt
+      ca: ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: schema-registry-proxy
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: schema-registry-proxy
+  template:
+    metadata:
+      labels:
+        app: schema-registry-proxy
+    spec:
+      containers:
+        - name: schema-registry-proxy
+          image: paulmw/sr-proxy:0.0.7
+          ports:
+            - containerPort: 8081
+          volumeMounts:
+            - name: tls-certs
+              mountPath: "/etc/tls"
+              readOnly: true
+            - name: ca-cert
+              mountPath: "/etc/ca"
+              readOnly: true
+            - name: schema-registry-proxy-config
+              mountPath: "/config.yaml"
+              subPath: "config.yaml"
+              readOnly: true
+      volumes:
+        - name: tls-certs
+          secret:
+            secretName: schema-registry-proxy-tls
+        - name: ca-cert
+          secret:
+            secretName: schema-registry-proxy-ca
+        - name: schema-registry-proxy-config
+          configMap:
+            name: schema-registry-proxy-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sr-proxy-service
+spec:
+  selector:
+    app: schema-registry-proxy
+  ports:
+    - protocol: TCP
+      port: 8081        # The port the service is exposed on
+      targetPort: 8081 # The port your app is listening on in the container
+  type: ClusterIP      # Internal service (default)
