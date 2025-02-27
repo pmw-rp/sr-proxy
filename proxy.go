@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	b64 "encoding/base64"
@@ -10,9 +9,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/bufbuild/protocompile"
+	"github.com/bufbuild/protocompile/parser"
+	"github.com/bufbuild/protocompile/reporter"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protodesc"
 	"gopkg.in/yaml.v3"
 	"io"
 	"log"
@@ -186,35 +185,31 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func encodeSchema(schema string) (string, error) {
-	compiler := protocompile.Compiler{
-		Resolver: &protocompile.SourceResolver{},
-	}
-	f, _ := os.CreateTemp("/tmp", "sample")
-	_, err := f.Write([]byte(schema))
-	if err != nil {
-		return "", errors.New("error creating temp file")
-	}
-	err = f.Close()
-	if err != nil {
-		return "", err
-	}
+func errorFunc(err reporter.ErrorWithPos) error {
+	println("foo")
+	return nil
+}
 
-	fls, err := compiler.Compile(context.TODO(), f.Name())
+func warnFunc(err reporter.ErrorWithPos) {
+	println("bar")
+}
+
+func encodeSchema(schema string) (string, error) {
+	reader := bytes.NewReader([]byte(schema))
+	reporterer := reporter.NewReporter(errorFunc, warnFunc)
+	handler := reporter.NewHandler(reporterer)
+	fileNode, err := parser.Parse("", reader, handler)
 	if err != nil {
-		return "", errors.New("error compiling schema: " + err.Error())
+		return "", errors.New("error parsing protobuf")
 	}
-	fdp := protodesc.ToFileDescriptorProto(fls[0].ParentFile())
-	raw, err := proto.Marshal(fdp)
+	result, err := parser.ResultFromAST(fileNode, true, handler)
 	if err != nil {
-		return "", errors.New("error marshalling protobuf file")
+		return "", errors.New("error getting result from AST")
+	}
+	raw, err := proto.Marshal(result.FileDescriptorProto())
+	if err != nil {
+		return "", errors.New("error getting FileDescriptorProto")
 	}
 	encoded := b64.StdEncoding.EncodeToString(raw)
-
-	err = os.Remove(f.Name())
-	if err != nil {
-		return "", errors.New("error removing temp file")
-	}
-
 	return encoded, nil
 }

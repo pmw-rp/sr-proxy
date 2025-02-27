@@ -1,1 +1,1 @@
-docker build --no-cache --platform linux/amd64,linux/arm64 -t paulmw/sr-proxy:0.0.7 . --push
+docker build --no-cache --platform linux/amd64,linux/arm64 -t paulmw/sr-proxy:0.0.8 . --push
